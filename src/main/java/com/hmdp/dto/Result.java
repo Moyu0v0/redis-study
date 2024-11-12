@@ -6,6 +6,12 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+/**
+ * 结果
+ *
+ * @author sundae
+ * @date 2024/11/12
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
