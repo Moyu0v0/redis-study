@@ -15,13 +15,12 @@ import org.springframework.web.bind.annotation.*;
 import javax.annotation.Resource;
 import java.util.List;
 
+
 /**
- * <p>
- * 前端控制器
- * </p>
+ * 博客控制器
  *
- * @author 虎哥
- * @since 2021-12-22
+ * @author sundae
+ * @date 2024/11/13
  */
 @RestController
 @RequestMapping("/blog")
