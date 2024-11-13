@@ -14,8 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.annotation.Resource;
 import java.time.Duration;
 
-import static com.hmdp.utils.RedisConstants.CACHE_SHOP_KEY;
-import static com.hmdp.utils.RedisConstants.CACHE_SHOP_TTL;
+import static com.hmdp.utils.RedisConstants.*;
 
 /**
  * <p>
@@ -35,20 +34,27 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         // 1. 从 redis 查询商铺缓存
         String shopKey = CACHE_SHOP_KEY + id;
         String shopJson = stringRedisTemplate.opsForValue().get(shopKey);
-        // 2. 命中，则直接返回商铺信息
+        // 2. 命中真实数据，返回商铺信息
         if (StrUtil.isNotBlank(shopJson)) {
             Shop shop = JSONUtil.toBean(shopJson, Shop.class);
             return Result.ok(shop);
         }
-        // 3. 未命中，则查询数据库
-        Shop shop = getById(id);
-        // 4. 若不存在，则返回错误信息
-        if (shop == null) {
+        // 3. 命中空值，返回错误信息
+        if ("".equals(shopJson)) {
             return Result.fail("商铺不存在！");
         }
-        // 5. 若存在，则将商铺数据写入 Redis，并设置超时时间
+        // 4. 未命中，则查询数据库
+        Shop shop = getById(id);
+        // 5. 若不存在，则返回错误信息
+        if (shop == null) {
+            // 将空值写入 Redis，并设置过期时间
+            stringRedisTemplate.opsForValue().set(shopKey, "", Duration.ofMinutes(CACHE_NULL_TTL));
+            // 返回错误信息
+            return Result.fail("商铺不存在！");
+        }
+        // 6. 若存在，则将商铺数据写入 Redis，并设置过期时间
         stringRedisTemplate.opsForValue().set(shopKey, JSONUtil.toJsonStr(shop), Duration.ofMinutes(CACHE_SHOP_TTL));
-        // 6. 返回商铺信息
+        // 7. 返回商铺信息
         return Result.ok(shop);
     }
 
