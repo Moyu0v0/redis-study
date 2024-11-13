@@ -16,6 +16,14 @@ import javax.servlet.http.HttpSession;
  * @since 2021-12-22
  */
 public interface IUserService extends IService<User> {
+    /**
+     * 发送验证码
+     *
+     * @param phone   手机号码
+     * @param session 会话
+     * @return {@link Result }
+     */
+    Result sendCode(String phone, HttpSession session);
 
     /**
      * 用户登录
