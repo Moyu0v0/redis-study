@@ -9,10 +9,13 @@ import com.hmdp.mapper.ShopMapper;
 import com.hmdp.service.IShopService;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
+import java.time.Duration;
 
 import static com.hmdp.utils.RedisConstants.CACHE_SHOP_KEY;
+import static com.hmdp.utils.RedisConstants.CACHE_SHOP_TTL;
 
 /**
  * <p>
@@ -43,9 +46,23 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         if (shop == null) {
             return Result.fail("商铺不存在！");
         }
-        // 5. 若存在，则将商铺数据写入 Redis
-        stringRedisTemplate.opsForValue().set(shopKey, JSONUtil.toJsonStr(shop));
+        // 5. 若存在，则将商铺数据写入 Redis，并设置超时时间
+        stringRedisTemplate.opsForValue().set(shopKey, JSONUtil.toJsonStr(shop), Duration.ofMinutes(CACHE_SHOP_TTL));
         // 6. 返回商铺信息
         return Result.ok(shop);
+    }
+
+    @Override
+    @Transactional // 删除操作出现异常时将事务回滚
+    public Result updateShop(Shop shop) {
+        Long id = shop.getId();
+        if (id == null) {
+            return Result.fail("商铺 id 不能为空！");
+        }
+        // 1. 修改数据库
+        updateById(shop);
+        // 2. 删除缓存
+        stringRedisTemplate.delete(CACHE_SHOP_KEY + id);
+        return Result.ok();
     }
 }
