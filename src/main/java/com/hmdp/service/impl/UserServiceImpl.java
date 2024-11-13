@@ -1,6 +1,7 @@
 package com.hmdp.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.bean.copier.CopyOptions;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpSession;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 
 import static com.hmdp.utils.RedisConstants.*;
@@ -70,7 +72,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         String token = UUID.randomUUID().toString(true);
         // 7.2 将 User 转换为 Hash
         UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);// 这里使用 MapStruct 映射属性性能会更好
-        Map<String, Object> userMap = BeanUtil.beanToMap(userDTO);
+        Map<String, Object> userMap = BeanUtil.beanToMap(userDTO,
+                new HashMap<>(),
+                CopyOptions.create().setIgnoreNullValue(true)
+                        .setFieldValueEditor((fieldName, fieldValue) -> fieldValue.toString()));
         // 7.3 将 Hash 存储到 Redis 并设置有效期为30分钟
         String userKey = LOGIN_USER_KEY + token;
         stringRedisTemplate.opsForHash().putAll(userKey, userMap);
