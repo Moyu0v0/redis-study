@@ -43,13 +43,13 @@ public class TokenRefreshInterceptor implements HandlerInterceptor {
         String userKey = LOGIN_USER_KEY + token;
         Map<Object, Object> userMap = stringRedisTemplate.opsForHash().entries(userKey);
         // 4. 判断用户是否存在
-        if (userMap.isEmpty()) { // entries()方法返回时就会null处理，因此不用判断是否为null了
+        if (userMap.isEmpty()) { // entries()方法返回时就会做null处理，因此不用判断是否为null了
             // 5. 如果用户不存在，放行
             return true;
         }
         // 6. 将查询到的 Hash 数据转为 UserDTO
         UserDTO userDTO = BeanUtil.fillBeanWithMap(userMap, new UserDTO(), false);
-        // 7. 保存用户到 ThreadLocal
+        // 7. 保存用户到 ThreadLocal （为了方便与后面的层共享数据）
         UserHolder.saveUser((UserDTO) userDTO);
         // 8. 刷新 token 的有效期
         stringRedisTemplate.expire(userKey, Duration.ofMinutes(LOGIN_USER_TTL));

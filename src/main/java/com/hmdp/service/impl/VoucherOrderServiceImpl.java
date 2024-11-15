@@ -34,7 +34,6 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     private RedisIdWorker redisIdWorker;
 
     @Override
-    @Transactional
     public Result seckillVoucher(Long voucherId) {
         // 1. 查询秒杀优惠券信息
         SeckillVoucher voucher = iSeckillVoucherService.getById(voucherId);
@@ -50,7 +49,24 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if (voucher.getStock() < 1) {
             return Result.fail("库存不足！");
         }
-        // 5. 扣减库存
+
+        Long userId = UserHolder.getUser().getId();
+        // 确保先提交事务，再释放锁
+        synchronized (userId.toString().intern()) { // 确保同一个用户id值使用同一把锁
+            return createVoucherOrder(voucherId, userId);
+        }
+    }
+
+    @Transactional
+    public Result createVoucherOrder(Long voucherId, Long userId) {
+        // 5. 一人一单判断
+        int count = query().eq("voucher_id", voucherId)
+                .eq("user_id", userId)
+                .count();
+        if (count > 0) {
+            return Result.fail("用户已经购买过一次！");
+        }
+        // 6. 扣减库存
         boolean success = iSeckillVoucherService.update()
                 .setSql("stock = stock - 1")
                 .eq("voucher_id", voucherId)
@@ -59,18 +75,17 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if (!success) {
             return Result.fail("库存不足！");
         }
-        // 6. 创建订单
+        // 7. 创建订单
         VoucherOrder voucherOrder = new VoucherOrder();
-        // 6.1 订单id
+        // 7.1 订单id
         Long orderId = redisIdWorker.nextId(VOUCHER_ORDER_KEY);
         voucherOrder.setId(orderId);
-        // 6.2 用户id
-        voucherOrder.setUserId(UserHolder.getUser().getId());
-        // 6.3 代金券id
+        // 7.2 用户id
+        voucherOrder.setUserId(userId);
+        // 7.3 代金券id
         voucherOrder.setVoucherId(voucherId);
-
         save(voucherOrder);
-        // 7. 返回订单id
+        // 8. 返回订单id
         return Result.ok(orderId);
     }
 }

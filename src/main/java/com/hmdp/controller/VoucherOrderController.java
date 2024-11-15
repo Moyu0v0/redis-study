@@ -23,9 +23,14 @@ public class VoucherOrderController {
     @Resource
     private IVoucherOrderService iVoucherOrderService;
 
+    /**
+     * 秒杀券下单，一人一单
+     *
+     * @param voucherId 券id
+     * @return {@link Result }
+     */
     @PostMapping("seckill/{id}")
     public Result seckillVoucher(@PathVariable("id") Long voucherId) {
-        // TODO 秒杀下单
         return iVoucherOrderService.seckillVoucher(voucherId);
     }
 }

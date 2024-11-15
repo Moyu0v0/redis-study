@@ -70,14 +70,14 @@ public class UserController {
 
     /**
      * 获取当前登录的用户
+     * 当前登录的用户已经在请求拦截器中通过UserHolder保存到ThreadLocal中了
+     * 一次请求是一个线程，因此可以共享拦截器中保存的数据
      *
      * @return {@link Result }
      */
     @GetMapping("/me")
     public Result me(){
-        // 获取当前登录的用户并返回（当前的用户已经在请求拦截器中通过UserHolder保存到ThreadLocal中了）
         UserDTO userDTO = UserHolder.getUser();
-        System.out.println(userDTO);
         return Result.ok(userDTO);
     }
 
