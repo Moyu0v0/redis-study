@@ -9,6 +9,7 @@ import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import com.hmdp.utils.RedisIdWorker;
 import com.hmdp.utils.UserHolder;
+import org.springframework.aop.framework.AopContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,10 +54,13 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         Long userId = UserHolder.getUser().getId();
         // 确保先提交事务，再释放锁
         synchronized (userId.toString().intern()) { // 确保同一个用户id值使用同一把锁
-            return createVoucherOrder(voucherId, userId);
+            // 获取当前代理对象
+            IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
+            return proxy.createVoucherOrder(voucherId, userId);
         }
     }
 
+    @Override
     @Transactional
     public Result createVoucherOrder(Long voucherId, Long userId) {
         // 5. 一人一单判断
