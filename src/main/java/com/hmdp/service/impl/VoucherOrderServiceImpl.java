@@ -9,6 +9,8 @@ import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import com.hmdp.utils.RedisIdWorker;
 import com.hmdp.utils.UserHolder;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +36,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     @Resource
     private RedisIdWorker redisIdWorker;
 
+    @Resource
+    private RedissonClient redissonClient;
+
     @Override
     public Result seckillVoucher(Long voucherId) {
         // 1. 查询秒杀优惠券信息
@@ -52,11 +57,22 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         }
 
         Long userId = UserHolder.getUser().getId();
-        // 确保先提交事务，再释放锁
-        synchronized (userId.toString().intern()) { // 确保同一个用户id值使用同一把锁
-            // 获取当前代理对象
+        // 5. 创建锁对象
+        RLock lock = redissonClient.getLock("lock:order:" + userId);
+        // 6.获取锁对象
+        boolean isLock = lock.tryLock();
+        // 7. 加锁失败
+        if (!isLock) {
+            return Result.fail("不允许重复下单！");
+        }
+        // 8. 加锁成功
+        try {
+            // 获取代理对象（事务）
             IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
             return proxy.createVoucherOrder(voucherId, userId);
+        } finally {
+            // 释放锁
+            lock.unlock();
         }
     }
 
@@ -68,7 +84,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
                 .eq("user_id", userId)
                 .count();
         if (count > 0) {
-            return Result.fail("用户已经购买过一次！");
+            return Result.fail("不允许重复下单！");
         }
         // 6. 扣减库存
         boolean success = iSeckillVoucherService.update()
