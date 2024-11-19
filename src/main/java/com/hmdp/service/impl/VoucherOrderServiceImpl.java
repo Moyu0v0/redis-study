@@ -2,21 +2,20 @@ package com.hmdp.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.Result;
-import com.hmdp.entity.SeckillVoucher;
 import com.hmdp.entity.VoucherOrder;
 import com.hmdp.mapper.VoucherOrderMapper;
 import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import com.hmdp.utils.RedisIdWorker;
 import com.hmdp.utils.UserHolder;
-import org.redisson.api.RLock;
-import org.redisson.api.RedissonClient;
-import org.springframework.aop.framework.AopContext;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
-import java.time.LocalDateTime;
+import java.util.Collections;
 
 import static com.hmdp.utils.RedisConstants.VOUCHER_ORDER_KEY;
 
@@ -36,44 +35,39 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     @Resource
     private RedisIdWorker redisIdWorker;
 
+    private static final DefaultRedisScript<Long> SECKILL_SCRIPT;
+
+    static {
+        SECKILL_SCRIPT = new DefaultRedisScript<>();
+        SECKILL_SCRIPT.setLocation(new ClassPathResource("seckill.lua"));
+        SECKILL_SCRIPT.setResultType(Long.class);
+    }
+
     @Resource
-    private RedissonClient redissonClient;
+    private StringRedisTemplate stringRedisTemplate;
 
     @Override
     public Result seckillVoucher(Long voucherId) {
-        // 1. 查询秒杀优惠券信息
-        SeckillVoucher voucher = iSeckillVoucherService.getById(voucherId);
-        // 2. 判断秒杀是否开始
-        if (voucher.getBeginTime().isAfter(LocalDateTime.now())) {
-            return Result.fail("秒杀尚未开始！");
-        }
-        // 3. 判断秒杀是否已经结束
-        if (voucher.getEndTime().isBefore(LocalDateTime.now())) {
-            return Result.fail("秒杀已经结束！");
-        }
-        // 4. 判断库存是否充足
-        if (voucher.getStock() < 1) {
-            return Result.fail("库存不足！");
-        }
-
+        // 1. 获取用户
         Long userId = UserHolder.getUser().getId();
-        // 5. 创建锁对象
-        RLock lock = redissonClient.getLock("lock:order:" + userId);
-        // 6.获取锁对象
-        boolean isLock = lock.tryLock();
-        // 7. 加锁失败
-        if (!isLock) {
-            return Result.fail("不允许重复下单！");
+        // 2. 执行lua脚本
+        Long result = stringRedisTemplate.execute(
+                SECKILL_SCRIPT,
+                Collections.emptyList(),
+                voucherId.toString(), userId.toString());
+        // 3. 判断结果是否为0
+        int r = 0;
+        if (result != null) {
+            r = result.intValue();
         }
-        // 8. 加锁成功
-        try {
-            // 获取代理对象（事务）
-            IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
-            return proxy.createVoucherOrder(voucherId, userId);
-        } finally {
-            // 释放锁
-            lock.unlock();
+        if (r != 0) {
+            // 3.1 不为0，代表没有购买资格
+            return r == 1 ? Result.fail("库存不足！") : Result.fail("不允许重复下单！");
         }
+        // 3.2 为0，有购买资格，把下单信息保存到阻塞队列
+        Long orderId = redisIdWorker.nextId("order");
+        // 4. 返回订单id
+        return Result.ok(orderId);
     }
 
     @Override
