@@ -14,7 +14,7 @@ import com.hmdp.entity.VoucherOrder;
  */
 public interface IVoucherOrderService extends IService<VoucherOrder> {
     /**
-     * 秒杀下单优惠券
+     * 秒杀下单优
      *
      * @param voucherId 券id
      * @return {@link Result }
@@ -22,11 +22,9 @@ public interface IVoucherOrderService extends IService<VoucherOrder> {
     Result seckillVoucher(Long voucherId);
 
     /**
-     * 创建秒杀优惠券订单
+     * 在MySQL中创建秒杀优惠券订单
      *
-     * @param voucherId 券id
-     * @param userId    用户id
-     * @return {@link Result }
+     * @param voucherOrder 优惠券订单
      */
-    Result createVoucherOrder(Long voucherId, Long userId);
+    void createVoucherOrder(VoucherOrder voucherOrder);
 }
